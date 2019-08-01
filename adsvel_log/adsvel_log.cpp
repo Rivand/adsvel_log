@@ -9,17 +9,22 @@
 */
 #include "adsvel_log.h"
 
-std::vector<std::unique_ptr<adsvel::log::BaseSink>> adsvel::log::Logger::sinks_;
-std::vector<adsvel::log::LogMessage> adsvel::log::Logger::messages_;
+std::vector<std::unique_ptr<adsvel::log::BaseSink>> adsvel::log::Logger::sinks_{};
+std::vector<adsvel::log::LogMessage> adsvel::log::Logger::messages_{};
 std::chrono::steady_clock::duration adsvel::log::Logger::log_interval_{std::chrono::milliseconds(500)};
+std::atomic<adsvel::log::LogLevels> adsvel::log::Logger::log_level_ {adsvel::log::LogLevels::Off};
+std::mutex adsvel::log::Logger::mut_{};
 std::thread adsvel::log::Logger::th_{[]() -> void {
     while (true) {
         std::this_thread::sleep_for(log_interval_);
-        for (auto& c : messages_) {
-            for (auto& sink : sinks_) {
-                sink->Log(c);
+        {
+            std::lock_guard lock(mut_);
+            for (auto& c : messages_) {
+                for (auto& sink : sinks_) {
+                    sink->Log(c);
+                }
             }
+            messages_.clear();
         }
-        messages_.clear();
     };
 }};
