@@ -17,7 +17,9 @@ namespace adsvel::log {
     class StdoutSink : public BaseSink {
        public:
         StdoutSink(LogLevels in_log_level) : log_level_(in_log_level){};
-        void SetLevel(LogLevels in_level) override {}
+        LogLevels GetLevel() override final { return log_level_; }
+        void SetLevel(LogLevels in_level) override final { log_level_ = in_level; }
+
         void Log(const LogMessage& in_msg) override {
             if (log_level_ <= in_msg.level) {
                 std::cout << in_msg.message << std::endl;
