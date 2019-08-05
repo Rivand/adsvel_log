@@ -2,8 +2,8 @@
 ***************************************************************************************************************************************************************
 * @file     adsvel_log.h
 * @author   Kuznetsov A.(RivandBlack).
-* @version  v 0.0.0
-* @date     13414
+* @version  v 0.0.5 
+* @date     05.07.2019 14:12:10
 * @brief    Adsvel logging library.
 * @details  I – info, W – warning, E – error, C – critical, D – debug.
 *
@@ -26,7 +26,8 @@
 #include <thread>
 #include <vector>
 namespace adsvel::log {
-    enum class LogLevels : uint8_t { Debug, Info, Warning, Error, Critical, Off };
+    enum class LogLevels : uint8_t { Debug, Trace, Info, Warning, Error, Critical, Off, _EnumEndDontUseThis_ };
+    const std::array<std::string_view, static_cast<int>(LogLevels::_EnumEndDontUseThis_)> LogLevelsStr{"Debug", "Trace" , "Info", "Warnng", "Error", "Critic", "Off"};
 
     class LogMessage {
        public:
@@ -56,9 +57,7 @@ namespace adsvel::log {
                             std::lock_guard lock(mut_);
                             for (auto& c : messages_) {
                                 for (auto& sink : sinks_) {
-                                    if (sink->GetLevel() <= c.level) {
-                                        sink->Log(c);
-                                    }
+                                    sink->Log(c);
                                 }
                             }
                             messages_.clear();
@@ -69,6 +68,7 @@ namespace adsvel::log {
             }
         }
         static void AddSink(std::unique_ptr<BaseSink> in_sink) {
+            std::lock_guard lock(mut_);
             if (in_sink->GetLevel() < log_level_) log_level_ = in_sink->GetLevel();
             sinks_.push_back(std::move(in_sink));
         }
@@ -87,6 +87,10 @@ namespace adsvel::log {
         template <class... Args>
         inline static void Debug(const std::string_view& in_msg, const Args&... in_args) {
             Log(LogLevels::Debug, in_msg, in_args...);
+        }
+        template <class... Args>
+        inline static void Trace(const std::string_view& in_msg, const Args&... in_args) {
+            Log(LogLevels::Trace, in_msg, in_args...);
         }
         template <class... Args>
         inline static void Info(const std::string_view& in_msg, const Args&... in_args) {
