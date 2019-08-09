@@ -2,8 +2,8 @@
 ***************************************************************************************************************************************************************
 * @file     stdout_sink.h
 * @author   Kuznetsov A.(RivandBlack).
-* @version  v 0.0.5 
-* @date     05.07.2019 14:10:21
+* @version  v 0.0.4
+* @date     01.07.2019 12:39:04
 * @brief    stdout sink.
 * @details  file_sink
 ***************************************************************************************************************************************************************
@@ -17,7 +17,7 @@
 namespace adsvel::log {
     class StdoutSink : public BaseSink {
        public:
-        StdoutSink(LogLevels in_log_level) : log_level_(in_log_level) {}
+        StdoutSink(LogLevels in_log_level) : log_level_{in_log_level} {}
         LogLevels GetLevel() override final { return log_level_; }
         void SetLevel(LogLevels in_level) override final { log_level_ = in_level; }
 
@@ -33,6 +33,7 @@ namespace adsvel::log {
                           << "]\x1b[0m " << in_msg.message << std::endl;
             }
         }
+
        private:
         std::string message_pattern_{""};
         constexpr static std::array<std::string_view, static_cast<size_t>(LogLevels::_EnumEndDontUseThis_)> colors_{"\x1b[37m", "\x1b[37m", "\x1b[36m", "\x1b[33m", "\x1b[31m", "\x1b[31m", ""};

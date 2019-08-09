@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.7)
+cmake_minimum_required(VERSION 3.12)
 
 project(adsvel_log)
 
@@ -16,4 +16,4 @@ add_executable (${PROJECT_NAME}
     main.cpp
     )
 
-target_link_libraries(${PROJECT_NAME} ${CMAKE_THREAD_LIBS_INIT} fmt::fmt)
+target_link_libraries(${PROJECT_NAME} ${CMAKE_THREAD_LIBS_INIT} fmt::fmt stdc++fs)
