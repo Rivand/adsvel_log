@@ -36,7 +36,7 @@ namespace adsvel::log {
                 char date_time_format[] = "%Y.%m.%d %H:%M:%S";
                 char time_str[] = "yyyy.mm.dd HH:MM:SS.mmm---";
                 strftime(time_str, strlen(time_str), date_time_format, &timetm);
-                string line{fmt::format("[{0}.{1}][{2}]{3}\n", time_str, std::chrono::duration_cast<std::chrono::milliseconds>(in_msg.time.time_since_epoch()).count() % 1000, LogLevelsStr.at(static_cast<uint16_t>(in_msg.level)), in_msg.message)};
+                string line{fmt::format("[{0}.{1:03}][{2:6}] {3}\n", time_str, std::chrono::duration_cast<std::chrono::milliseconds>(in_msg.time.time_since_epoch()).count() % 1000, LogLevelsStr.at(static_cast<uint16_t>(in_msg.level)), in_msg.message)};
                 TryWriteToLogFile_(line);
             }
         }
@@ -108,11 +108,6 @@ namespace adsvel::log {
                 if (current_size_of_log_file_ >= max_log_file_size_mb_ * 1024 * 1024) {
                     RotateLogFile_();
                     current_size_of_log_file_ = 0;
-                    /*
-                    logs_file_stream_.close();
-                    RotateLogFile_();
-                    logs_file_stream_.open(logs_file_full_name_, std::ofstream::out | std::ofstream::app);
-                    */
                 }
                 return;
             } else {
