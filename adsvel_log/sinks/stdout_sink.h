@@ -33,6 +33,7 @@ namespace adsvel::log {
                           << "]\x1b[0m " << in_msg.message << std::endl;
             }
         }
+        void Flush() override { std::cout << std::flush; }
 
        private:
         std::string message_pattern_{""};

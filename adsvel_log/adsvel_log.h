@@ -2,7 +2,7 @@
 ***************************************************************************************************************************************************************
 * @file     adsvel_log.h
 * @author   Kuznetsov A.(RivandBlack).
-* @version  v 0.0.5 
+* @version  v 0.0.5
 * @date     05.07.2019 14:12:10
 * @brief    Adsvel logging library.
 * @details  I – info, W – warning, E – error, C – critical, D – debug.
@@ -27,7 +27,7 @@
 #include <vector>
 namespace adsvel::log {
     enum class LogLevels : uint8_t { Debug, Trace, Info, Warning, Error, Critical, Off, _EnumEndDontUseThis_ };
-    const std::array<std::string_view, static_cast<int>(LogLevels::_EnumEndDontUseThis_)> LogLevelsStr{"Debug", "Trace" , "Info", "Warnng", "Error", "Critic", "Off"};
+    const std::array<std::string_view, static_cast<int>(LogLevels::_EnumEndDontUseThis_)> LogLevelsStr{"Debug", "Trace", "Info", "Warnng", "Error", "Critic", "Off"};
 
     class LogMessage {
        public:
@@ -42,6 +42,7 @@ namespace adsvel::log {
         virtual LogLevels GetLevel() = 0;
         virtual void SetLevel(LogLevels in_level) = 0;
         virtual void Log(const LogMessage& in_msg) = 0;
+        virtual void Flush() = 0;
         virtual ~BaseSink() = default;
     };
 
@@ -55,10 +56,13 @@ namespace adsvel::log {
                         std::this_thread::sleep_for(log_interval_);
                         {
                             std::lock_guard lock(mut_);
-                            for (auto& c : messages_) {
+                            for (auto& c : messages_) {  // First the messages then sinks. It's faster from the point of view of the cache.
                                 for (auto& sink : sinks_) {
                                     sink->Log(c);
                                 }
+                            }
+                            for (auto& sink : sinks_) {
+                                sink->Flush();
                             }
                             messages_.clear();
                         }
