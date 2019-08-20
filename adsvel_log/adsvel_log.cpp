@@ -9,6 +9,7 @@
 */
 #include "adsvel_log.h"
 
+//const std::array<std::string_view, static_cast<int>(adsvel::log::LogLevels::_EnumEndDontUseThis_)> adsvel::log::LogLevelsStr{};
 std::vector<std::unique_ptr<adsvel::log::BaseSink>> adsvel::log::Logger::sinks_{};
 std::vector<adsvel::log::LogMessage> adsvel::log::Logger::messages_{};
 std::chrono::steady_clock::duration adsvel::log::Logger::log_interval_{std::chrono::milliseconds(500)};

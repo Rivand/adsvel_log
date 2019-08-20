@@ -25,15 +25,16 @@
 #include <mutex>
 #include <thread>
 #include <vector>
+#include <array>
 namespace adsvel::log {
     enum class LogLevels : uint8_t { Debug, Trace, Info, Warning, Error, Critical, Off, _EnumEndDontUseThis_ };
     const std::array<std::string_view, static_cast<int>(LogLevels::_EnumEndDontUseThis_)> LogLevelsStr{"Debug", "Trace", "Info", "Warnng", "Error", "Critic", "Off"};
 
     class LogMessage {
        public:
-        LogMessage(LogLevels in_level, std::string in_message) : message(in_message), time(std::chrono::high_resolution_clock::now()), level(in_level) {}
+        LogMessage(LogLevels in_level, std::string in_message) : message(in_message), time(std::chrono::system_clock::now()), level(in_level) {}
         std::string message;
-        std::chrono::high_resolution_clock::time_point time;
+        std::chrono::system_clock::time_point time;
         LogLevels level;
     };
 

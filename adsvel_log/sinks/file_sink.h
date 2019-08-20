@@ -8,13 +8,14 @@
 ***************************************************************************************************************************************************************
 */
 #pragma once
-#include <experimental/filesystem>
+#include <filesystem>
 #include <fstream>
 #include <iomanip>
 #include <map>
 #include <stdexcept>
 #include <string>
 #include "../adsvel_log.h"
+#include <time.h>
 namespace adsvel::log {
     using std::map;
     using std::string;
@@ -35,7 +36,7 @@ namespace adsvel::log {
             if (log_level_ <= in_msg.level) {
                 std::time_t time = std::chrono::system_clock::to_time_t(in_msg.time);
                 std::tm timetm{};
-                localtime_r(&time, &timetm);
+                localtime_s(&timetm,&time);
                 char date_time_format[] = "%Y.%m.%d %H:%M:%S";
                 char time_str[] = "yyyy.mm.dd HH:MM:SS.mmm---";
                 strftime(time_str, strlen(time_str), date_time_format, &timetm);
