@@ -8,6 +8,7 @@
 ***************************************************************************************************************************************************************
 */
 #pragma once
+#include <time.h>
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
@@ -15,7 +16,6 @@
 #include <stdexcept>
 #include <string>
 #include "../adsvel_log.h"
-#include <time.h>
 namespace adsvel::log {
     using std::map;
     using std::string;
@@ -36,7 +36,11 @@ namespace adsvel::log {
             if (log_level_ <= in_msg.level) {
                 std::time_t time = std::chrono::system_clock::to_time_t(in_msg.time);
                 std::tm timetm{};
-                localtime_s(&timetm,&time);
+#ifdef __GNUC__
+                localtime_r(&time, &timetm);
+#else
+                localtime_s(&timetm, &time);
+#endif
                 char date_time_format[] = "%Y.%m.%d %H:%M:%S";
                 char time_str[] = "yyyy.mm.dd HH:MM:SS.mmm---";
                 strftime(time_str, strlen(time_str), date_time_format, &timetm);
@@ -64,7 +68,7 @@ namespace adsvel::log {
         void RemoveIrrelevantLogsFile(size_t in_current_file_num) {
             size_t delete_file_num = in_current_file_num - amount_of_log_files_;
             if (delete_file_num < 1) delete_file_num += kMaxNumberOfLogFile;
-            std::experimental::filesystem::path logs_file{MakeLogsFileFullName_(delete_file_num)};
+            std::filesystem::path logs_file{MakeLogsFileFullName_(delete_file_num)};
             if (exists(logs_file)) remove(logs_file);
         }
         void OpenRelevantLogFile_() {
@@ -122,7 +126,7 @@ namespace adsvel::log {
             if (current_file_index_ > kMaxNumberOfLogFile) current_file_index_ = kFirstNumberOfLogFile;
             RemoveIrrelevantLogsFile(current_file_index_);
             logs_file_full_name_ = MakeLogsFileFullName_(current_file_index_);
-            std::experimental::filesystem::path logs_file{logs_file_full_name_};
+            std::filesystem::path logs_file{logs_file_full_name_};
             if (exists(logs_file)) remove(logs_file);
             logs_file_stream_.open(logs_file_full_name_.string(), std::ofstream::out | std::ofstream::app);
             current_size_of_log_file_ = 0;
@@ -180,7 +184,7 @@ namespace adsvel::log {
         std::ofstream logs_file_stream_;
         size_t current_file_index_{0};
 
-        std::experimental::filesystem::path logs_file_full_name_{""};                 ///< Полный путь к файлу с логами, с которым в текущий момент работает логер.
+        std::filesystem::path logs_file_full_name_{""};                               ///< Полный путь к файлу с логами, с которым в текущий момент работает логер.
         std::chrono::steady_clock::time_point time_of_last_attempt_open_log_file_{};  ///< Время последней попытки открыть файл с логами.
         std::map<size_t, string> accumulated_logs_{};                                 ///< <log_file_index, log_content>
         size_t current_accumulated_logs_set_index_{0};

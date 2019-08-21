@@ -25,7 +25,11 @@ namespace adsvel::log {
             if (log_level_ <= in_msg.level) {
                 std::time_t time = std::chrono::system_clock::to_time_t(in_msg.time);
                 std::tm timetm{};
+#ifdef __GNUC__
+                localtime_r(&time, &timetm);
+#else
                 localtime_s(&timetm, &time);
+#endif
                 char date_time_format[] = "%Y.%m.%d %H:%M:%S";
                 char time_str[] = "yyyy.mm.dd HH:MM:SS.mmm---";
                 strftime(time_str, strlen(time_str), date_time_format, &timetm);
