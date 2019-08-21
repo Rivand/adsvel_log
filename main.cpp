@@ -13,13 +13,13 @@ int main() {
     std::unique_ptr cout_sink_1 = std::make_unique<adsvel::log::StdoutSink>(adsvel::log::LogLevels::Debug);
     std::unique_ptr cout_sink_2 = std::make_unique<adsvel::log::StdoutSink>(adsvel::log::LogLevels::Error);
 
-    std::unique_ptr file_sink = std::make_unique<adsvel::log::FileSink>(adsvel::log::LogLevels::Trace, "LOG {}.txt", 1, 10);
+    std::unique_ptr file_sink = std::make_unique<adsvel::log::FileSink>(adsvel::log::LogLevels::Trace, "LOG {}.txt", 1, 3);
     Logger::AddSink(std::move(cout_sink_1));
     Logger::AddSink(std::move(cout_sink_2));
     Logger::AddSink(std::move(file_sink));
     int counter{0};
     while (true) {
-        std::this_thread::sleep_for(100ms);
+        std::this_thread::sleep_for(10ms);
         Logger::Debug("Debug");
         Logger::Trace("Trace");
         Logger::Info("123");

@@ -9,6 +9,7 @@
 */
 #pragma once
 #include <time.h>
+#include <bitset>
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
@@ -23,7 +24,7 @@ namespace adsvel::log {
     class FileSink : public BaseSink {
        public:
         FileSink(LogLevels in_log_level, const string in_file_name_pattern, size_t in_max_log_file_size_mb, size_t in_amount_of_log_files)
-            : file_name_pattern_{in_file_name_pattern}, log_level_{in_log_level}, max_log_file_size_mb_{in_max_log_file_size_mb}, amount_of_log_files_{in_amount_of_log_files}, time_of_last_attempt_open_log_file_(std::chrono::steady_clock::now() - kPeriodBetweenAttemptsOpenLogFile) {
+            : file_name_pattern_{in_file_name_pattern}, log_level_{in_log_level}, max_log_file_size_{in_max_log_file_size_mb * 1024 * 1024}, amount_of_log_files_{in_amount_of_log_files}, time_of_last_attempt_open_log_file_(std::chrono::steady_clock::now() - kPeriodBetweenAttemptsOpenLogFile) {
             if (amount_of_log_files_ > kMaxAmountOfLogFile) {
                 amount_of_log_files_ = kMaxAmountOfLogFile;
                 throw std::length_error("Exceeded the 'in_amount_of_log_files' during FileSink initialization.");
@@ -45,17 +46,20 @@ namespace adsvel::log {
                 char time_str[] = "yyyy.mm.dd HH:MM:SS.mmm---";
                 strftime(time_str, strlen(time_str), date_time_format, &timetm);
                 string line{fmt::format("[{0}.{1:03}][{2:6}] {3}\n", time_str, std::chrono::duration_cast<std::chrono::milliseconds>(in_msg.time.time_since_epoch()).count() % 1000, LogLevelsStr.at(static_cast<uint16_t>(in_msg.level)), in_msg.message)};
+
                 if (current_accumulated_logs_set_index_ == current_file_index_) {
-                    if (current_size_of_log_file_ + line.size() <= max_log_file_size_mb_)
+                    if (current_size_of_log_file_ + line.size() + accumulated_logs_[current_accumulated_logs_set_index_].size() <= max_log_file_size_) {
                         accumulated_logs_[current_accumulated_logs_set_index_].append(line);
-                    else {
+                    } else {
+                        full_flags_of_accumulated_logs_[current_accumulated_logs_set_index_] = true;
                         current_accumulated_logs_set_index_++;
                         accumulated_logs_[current_accumulated_logs_set_index_].append(line);
                     }
                 } else {
-                    if (accumulated_logs_[current_accumulated_logs_set_index_].size() + line.size() <= max_log_file_size_mb_)
+                    if (accumulated_logs_[current_accumulated_logs_set_index_].size() + line.size() <= max_log_file_size_) {
                         accumulated_logs_[current_accumulated_logs_set_index_].append(line);
-                    else {
+                    } else {
+                        full_flags_of_accumulated_logs_[current_accumulated_logs_set_index_] = true;
                         current_accumulated_logs_set_index_++;
                         accumulated_logs_[current_accumulated_logs_set_index_].append(line);
                     }
@@ -83,7 +87,7 @@ namespace adsvel::log {
             while (true) {
                 if (exists(logs_file_full_name_)) {  // Нашли подходящий файл.
                     current_size_of_log_file_ = file_size(logs_file_full_name_);
-                    if (current_size_of_log_file_ < max_log_file_size_mb_) {  // Был заполнен этот файл до конца или там еще осталось место.
+                    if (current_size_of_log_file_ < max_log_file_size_) {  // Был заполнен этот файл до конца или там еще осталось место.
                         logs_file_stream_.open(logs_file_full_name_.string(), std::ofstream::out | std::ofstream::app);
                         current_file_index_ = counter;
                         break;
@@ -103,17 +107,17 @@ namespace adsvel::log {
                     logs_file_full_name_ = MakeLogsFileFullName_(kFirstNumberOfLogFile);
                     logs_file_stream_.open(logs_file_full_name_.string(), std::ofstream::out | std::ofstream::app);
                     current_size_of_log_file_ = 0;
-                    current_file_index_ = counter;
+                    current_file_index_ = kFirstNumberOfLogFile;
                     break;
                 }
             }
             // Need to adjust the current_file_index_ and the accumulated_logs_
-            if (start_file_index > current_file_index_) {  // Need to shift the current_file_index_
+            if (start_file_index > current_file_index_) {
                 auto offset = start_file_index - current_file_index_;
                 ShiftAccumulatedLogsMapToRight_(offset);
                 current_accumulated_logs_set_index_ += offset;
             }
-            if (start_file_index < current_file_index_) {  // Need to shift the current_file_index_
+            if (start_file_index < current_file_index_) {
                 auto offset = current_file_index_ - start_file_index;
                 ShiftAccumulatedLogsMapToLeft_(offset);
                 current_accumulated_logs_set_index_ -= offset;
@@ -133,10 +137,17 @@ namespace adsvel::log {
         }
 
         void Flush() override try {
-            for (size_t i{current_file_index_}; i < current_accumulated_logs_set_index_; i++) {
+            for (size_t i{current_file_index_}; i <= current_accumulated_logs_set_index_; i++) {
                 if (logs_file_stream_.is_open()) {
                     logs_file_stream_ << accumulated_logs_[i] << std::flush;
-                    RotateLogFile_();
+                    if (full_flags_of_accumulated_logs_[i]) {
+                        full_flags_of_accumulated_logs_[i] = false;
+                        RotateLogFile_();
+                    } else {
+                        current_size_of_log_file_ += accumulated_logs_[i].size();
+                        return;
+                    }
+
                 } else {
                     if (time_of_last_attempt_open_log_file_ + kPeriodBetweenAttemptsOpenLogFile <= std::chrono::steady_clock::now()) {
                         time_of_last_attempt_open_log_file_ = std::chrono::steady_clock::now();
@@ -147,7 +158,13 @@ namespace adsvel::log {
                             // Если файл с логами открыть наконец удалось, то скидываем туда всё что накопили.
                             logs_file_stream_ << "=========================== START A NEW RECORD ==========================" << std::flush << std::endl;
                             logs_file_stream_ << accumulated_logs_[i] << std::flush;
-                            RotateLogFile_();
+                            if (full_flags_of_accumulated_logs_[i]) {
+                                full_flags_of_accumulated_logs_[i] = false;
+                                RotateLogFile_();
+                            } else {
+                                current_size_of_log_file_ += accumulated_logs_[i].size();
+                                return;
+                            }
                         }
                     }
                 }
@@ -179,18 +196,18 @@ namespace adsvel::log {
         static constexpr std::chrono::duration kPeriodBetweenAttemptsOpenLogFile{std::chrono::seconds(30)};
         static constexpr uint32_t kMaxSizeOfDelayedWriteToLoggingFile{100 * 1024 * 1024};
         const std::string file_name_pattern_;
-        std::string message_pattern_{""};
-        LogLevels log_level_{LogLevels::Info};
         std::ofstream logs_file_stream_;
-        size_t current_file_index_{0};
-
+        std::string message_pattern_{""};
+        size_t current_file_index_{kFirstNumberOfLogFile};
         std::filesystem::path logs_file_full_name_{""};                               ///< Полный путь к файлу с логами, с которым в текущий момент работает логер.
         std::chrono::steady_clock::time_point time_of_last_attempt_open_log_file_{};  ///< Время последней попытки открыть файл с логами.
         std::map<size_t, string> accumulated_logs_{};                                 ///< <log_file_index, log_content>
-        size_t current_accumulated_logs_set_index_{0};
-        size_t max_log_file_size_mb_{0};
+        std::bitset<kMaxNumberOfLogFile> full_flags_of_accumulated_logs_{};
+        size_t current_accumulated_logs_set_index_{kFirstNumberOfLogFile};
+        size_t max_log_file_size_{0};
         size_t amount_of_log_files_{0};
         size_t current_size_of_log_file_{0};
+        LogLevels log_level_{LogLevels::Info};
     };  // namespace adsvel::log
 
 }  // namespace adsvel::log
