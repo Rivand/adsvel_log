@@ -66,6 +66,51 @@ namespace adsvel::log {
                 }
             }
         }
+        void Flush() override try {
+            for (size_t i{current_file_index_}; i <= current_accumulated_logs_set_index_; i++) {
+                if (logs_file_stream_.is_open()) {
+                    logs_file_stream_ << accumulated_logs_[i] << std::flush;
+                    accumulated_logs_[i].clear();
+                    if (full_flags_of_accumulated_logs_[i]) {
+                        full_flags_of_accumulated_logs_[i] = false;
+                        RotateLogFile_();
+                    } else {
+                        current_size_of_log_file_ += accumulated_logs_[i].size();
+                        return;
+                    }
+
+                } else {
+                    if (time_of_last_attempt_open_log_file_ + kPeriodBetweenAttemptsOpenLogFile <= std::chrono::steady_clock::now()) {
+                        time_of_last_attempt_open_log_file_ = std::chrono::steady_clock::now();
+                        OpenRelevantLogFile_();
+                        if (!logs_file_stream_.is_open()) {
+                            return;
+                        } else {
+                            // Нужно еще раз перепроверить размеры, если размеры не сходятся, то записываем все логи в следующий файл.
+                            // Из-за этого у нас один из файлов будет заполнен не до конца, но это лучше, чем если бы он был большего размера, чем рассчитывал пользователь.
+                            if (current_size_of_log_file_ + accumulated_logs_[i].size() > max_log_file_size_) {
+                                ShiftAccumulatedLogsMapToRight_(1);
+                                RotateLogFile_();
+                            }
+                            // Если файл с логами открыть наконец удалось, то скидываем туда всё что накопили.
+                            std::cout << accumulated_logs_[i] << std::endl;
+                            logs_file_stream_ << open_file_message_ << std::flush << std::endl;
+                            logs_file_stream_ << accumulated_logs_[i] << std::flush;
+                            accumulated_logs_[i].clear();
+                            if (full_flags_of_accumulated_logs_[i]) {
+                                full_flags_of_accumulated_logs_[i] = false;
+                                RotateLogFile_();
+                            } else {
+                                current_size_of_log_file_ += accumulated_logs_[i].size();
+                                return;
+                            }
+                        }
+                    }
+                }
+            }
+        }              // namespace adsvel::log
+        catch (...) {  // Don't remove this catch!
+        }
 
        private:
         string MakeLogsFileFullName_(std::size_t in_file_num) { return fmt::format(file_name_pattern_, in_file_num); }
@@ -77,7 +122,7 @@ namespace adsvel::log {
         }
         void OpenRelevantLogFile_() {
             uint16_t counter{kMaxNumberOfLogFile};
-            size_t start_file_index{current_file_index_};
+            size_t tmp_file_index{current_file_index_}; // Need which would then calculate the index offset.
             logs_file_full_name_ = MakeLogsFileFullName_(counter);
             if (exists(logs_file_full_name_)) {
                 counter = kMaxAmountOfLogFile;  // Если есть 9999тый файл логов, то это означает что был пройден круг с 1 до 9999 и нам надо искать файл с середины.
@@ -112,15 +157,15 @@ namespace adsvel::log {
                 }
             }
             // Need to adjust the current_file_index_ and the accumulated_logs_
-            if (start_file_index > current_file_index_) {
-                auto offset = start_file_index - current_file_index_;
+            if (tmp_file_index < current_file_index_) {
+                auto offset = current_file_index_ - tmp_file_index ;
                 ShiftAccumulatedLogsMapToRight_(offset);
                 current_accumulated_logs_set_index_ += offset;
             }
-            if (start_file_index < current_file_index_) {
-                auto offset = current_file_index_ - start_file_index;
+            if (tmp_file_index > current_file_index_) {
+                auto offset = tmp_file_index - current_file_index_ ;
                 ShiftAccumulatedLogsMapToLeft_(offset);
-                current_accumulated_logs_set_index_ -= offset;
+                current_accumulated_logs_set_index_ -= offset; // TODO Сделать проход через 9999.
             }
         }
         void RotateLogFile_() {
@@ -136,48 +181,15 @@ namespace adsvel::log {
             current_size_of_log_file_ = 0;
         }
 
-        void Flush() override try {
-            for (size_t i{current_file_index_}; i <= current_accumulated_logs_set_index_; i++) {
-                if (logs_file_stream_.is_open()) {
-                    logs_file_stream_ << accumulated_logs_[i] << std::flush;
-                    if (full_flags_of_accumulated_logs_[i]) {
-                        full_flags_of_accumulated_logs_[i] = false;
-                        RotateLogFile_();
-                    } else {
-                        current_size_of_log_file_ += accumulated_logs_[i].size();
-                        return;
-                    }
-
-                } else {
-                    if (time_of_last_attempt_open_log_file_ + kPeriodBetweenAttemptsOpenLogFile <= std::chrono::steady_clock::now()) {
-                        time_of_last_attempt_open_log_file_ = std::chrono::steady_clock::now();
-                        OpenRelevantLogFile_();
-                        if (!logs_file_stream_.is_open()) {
-                            return;
-                        } else {
-                            // Если файл с логами открыть наконец удалось, то скидываем туда всё что накопили.
-                            logs_file_stream_ << "=========================== START A NEW RECORD ==========================" << std::flush << std::endl;
-                            logs_file_stream_ << accumulated_logs_[i] << std::flush;
-                            if (full_flags_of_accumulated_logs_[i]) {
-                                full_flags_of_accumulated_logs_[i] = false;
-                                RotateLogFile_();
-                            } else {
-                                current_size_of_log_file_ += accumulated_logs_[i].size();
-                                return;
-                            }
-                        }
-                    }
-                }
-            }
-        }              // namespace adsvel::log
-        catch (...) {  // Этот cathc тут нужен обязательно.
-        }
-
         void ShiftAccumulatedLogsMapToRight_(size_t offset) {
             auto begin{accumulated_logs_.begin()->first};
             for (auto end{accumulated_logs_.end()->first}; begin <= end; end--) {
                 auto extracted_node = accumulated_logs_.extract(end);
-                extracted_node.key() = extracted_node.key() + offset;
+                auto new_key = extracted_node.key() + offset;
+                if (new_key > kMaxNumberOfLogFile) new_key -= kMaxNumberOfLogFile;
+                full_flags_of_accumulated_logs_[new_key] = full_flags_of_accumulated_logs_[extracted_node.key()];
+                full_flags_of_accumulated_logs_[extracted_node.key()] = false;
+                extracted_node.key() = new_key;
                 accumulated_logs_.insert(move(extracted_node));
             }
         }
@@ -185,7 +197,15 @@ namespace adsvel::log {
             auto end{accumulated_logs_.end()->first};
             for (auto begin{accumulated_logs_.begin()->first}; begin <= end; begin++) {
                 auto extracted_node = accumulated_logs_.extract(begin);
-                extracted_node.key() = extracted_node.key() - offset;
+                size_t new_key{};
+                if (extracted_node.key() > offset) {
+                    new_key = extracted_node.key() - offset;
+                } else {
+                    new_key = (extracted_node.key() + kMaxNumberOfLogFile) - offset;
+                }
+                full_flags_of_accumulated_logs_[new_key] = full_flags_of_accumulated_logs_[extracted_node.key()];
+                full_flags_of_accumulated_logs_[extracted_node.key()] = false;
+                extracted_node.key() = new_key;
                 accumulated_logs_.insert(move(extracted_node));
             }
         }
@@ -195,6 +215,7 @@ namespace adsvel::log {
         static constexpr uint16_t kFirstNumberOfLogFile{1};
         static constexpr std::chrono::duration kPeriodBetweenAttemptsOpenLogFile{std::chrono::seconds(30)};
         static constexpr uint32_t kMaxSizeOfDelayedWriteToLoggingFile{100 * 1024 * 1024};
+        const std::string open_file_message_{"=========================== START A NEW RECORD =========================="};
         const std::string file_name_pattern_;
         std::ofstream logs_file_stream_;
         std::string message_pattern_{""};
