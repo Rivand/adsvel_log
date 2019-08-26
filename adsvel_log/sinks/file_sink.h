@@ -49,7 +49,8 @@ namespace adsvel::log {
 
                 if (current_accumulated_logs_set_index_ == current_file_index_) {
                     if (current_size_of_log_file_ + line.size() + accumulated_logs_[current_accumulated_logs_set_index_].size() <= max_log_file_size_) {
-                        accumulated_logs_[current_accumulated_logs_set_index_].append(line);
+                                                accumulated_logs_[current_accumulated_logs_set_index_].append(line);
+                        current_size_of_log_file_ += line.size();
                     } else {
                         full_flags_of_accumulated_logs_[current_accumulated_logs_set_index_] = true;
                         current_accumulated_logs_set_index_++;
@@ -75,7 +76,6 @@ namespace adsvel::log {
                         full_flags_of_accumulated_logs_[i] = false;
                         RotateLogFile_();
                     } else {
-                        current_size_of_log_file_ += accumulated_logs_[i].size();
                         return;
                     }
 
@@ -83,6 +83,7 @@ namespace adsvel::log {
                     if (time_of_last_attempt_open_log_file_ + kPeriodBetweenAttemptsOpenLogFile <= std::chrono::steady_clock::now()) {
                         time_of_last_attempt_open_log_file_ = std::chrono::steady_clock::now();
                         OpenRelevantLogFile_();
+                        i = current_file_index_;
                         if (!logs_file_stream_.is_open()) {
                             return;
                         } else {
@@ -93,7 +94,6 @@ namespace adsvel::log {
                                 RotateLogFile_();
                             }
                             // Если файл с логами открыть наконец удалось, то скидываем туда всё что накопили.
-                            std::cout << accumulated_logs_[i] << std::endl;
                             logs_file_stream_ << open_file_message_ << std::flush << std::endl;
                             logs_file_stream_ << accumulated_logs_[i] << std::flush;
                             accumulated_logs_[i].clear();
@@ -101,7 +101,6 @@ namespace adsvel::log {
                                 full_flags_of_accumulated_logs_[i] = false;
                                 RotateLogFile_();
                             } else {
-                                current_size_of_log_file_ += accumulated_logs_[i].size();
                                 return;
                             }
                         }
@@ -120,6 +119,7 @@ namespace adsvel::log {
             std::filesystem::path logs_file{MakeLogsFileFullName_(delete_file_num)};
             if (exists(logs_file)) remove(logs_file);
         }
+
         void OpenRelevantLogFile_() {
             uint16_t counter{kMaxNumberOfLogFile};
             size_t tmp_file_index{current_file_index_}; // Need which would then calculate the index offset.
