@@ -49,7 +49,7 @@ namespace adsvel::log {
 
                 if (current_accumulated_logs_set_index_ == current_file_index_) {
                     if (current_size_of_log_file_ + line.size() + accumulated_logs_[current_accumulated_logs_set_index_].size() <= max_log_file_size_) {
-                                                accumulated_logs_[current_accumulated_logs_set_index_].append(line);
+                        accumulated_logs_[current_accumulated_logs_set_index_].append(line);
                         current_size_of_log_file_ += line.size();
                     } else {
                         full_flags_of_accumulated_logs_[current_accumulated_logs_set_index_] = true;
@@ -122,7 +122,7 @@ namespace adsvel::log {
 
         void OpenRelevantLogFile_() {
             uint16_t counter{kMaxNumberOfLogFile};
-            size_t tmp_file_index{current_file_index_}; // Need which would then calculate the index offset.
+            size_t tmp_file_index{current_file_index_};  // Need which would then calculate the index offset.
             logs_file_full_name_ = MakeLogsFileFullName_(counter);
             if (exists(logs_file_full_name_)) {
                 counter = kMaxAmountOfLogFile;  // Если есть 9999тый файл логов, то это означает что был пройден круг с 1 до 9999 и нам надо искать файл с середины.
@@ -158,14 +158,19 @@ namespace adsvel::log {
             }
             // Need to adjust the current_file_index_ and the accumulated_logs_
             if (tmp_file_index < current_file_index_) {
-                auto offset = current_file_index_ - tmp_file_index ;
+                auto offset = current_file_index_ - tmp_file_index;
                 ShiftAccumulatedLogsMapToRight_(offset);
                 current_accumulated_logs_set_index_ += offset;
+                if (current_accumulated_logs_set_index_ > kMaxNumberOfLogFile) current_accumulated_logs_set_index_ -= kMaxNumberOfLogFile;
             }
             if (tmp_file_index > current_file_index_) {
-                auto offset = tmp_file_index - current_file_index_ ;
+                auto offset = tmp_file_index - current_file_index_;
                 ShiftAccumulatedLogsMapToLeft_(offset);
-                current_accumulated_logs_set_index_ -= offset; // TODO Сделать проход через 9999.
+                if (current_accumulated_logs_set_index_ > offset) {
+                    current_accumulated_logs_set_index_ -= offset;
+                } else {
+                    current_accumulated_logs_set_index_ = current_accumulated_logs_set_index_ + kMaxNumberOfLogFile - offset;
+                }
             }
         }
         void RotateLogFile_() {

@@ -18,6 +18,7 @@
 */
 #pragma once
 #include <fmt/format.h>
+#include <array>
 #include <atomic>
 #include <chrono>
 #include <iostream>
@@ -25,7 +26,6 @@
 #include <mutex>
 #include <thread>
 #include <vector>
-#include <array>
 namespace adsvel::log {
     enum class LogLevels : uint8_t { Debug, Trace, Info, Warning, Error, Critical, Off, _EnumEndDontUseThis_ };
     const std::array<std::string_view, static_cast<int>(LogLevels::_EnumEndDontUseThis_)> LogLevelsStr{"Debug", "Trace", "Info", "Warnng", "Error", "Critic", "Off"};
@@ -80,6 +80,13 @@ namespace adsvel::log {
         static void SetLogInterval(std::chrono::steady_clock::duration in_interval) {
             std::lock_guard lock(mut_);
             log_interval_ = in_interval;
+        }
+
+        static void Flush() {
+            std::lock_guard lock(mut_);
+            for (auto& sink : sinks_) {
+                sink->Flush();
+            }
         }
 
         template <class... Args>
